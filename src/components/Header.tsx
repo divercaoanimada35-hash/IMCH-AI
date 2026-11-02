@@ -65,14 +65,14 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="flex items-center justify-between gap-4 px-4 py-2 border-b border-neutral-200 dark:border-neutral-800/80 bg-white dark:bg-[#08080a] text-neutral-900 dark:text-neutral-100 shrink-0 z-30 transition-colors select-none">
       {/* Left / Navigation: [ IMChat ] [ IMCH AI DEVELOPER ] */}
-      <div className="flex items-center gap-2 sm:gap-4 whitespace-nowrap shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 whitespace-nowrap shrink-0">
         <button
           type="button"
           onClick={() => onSelectView('chat')}
-          className={`px-3.5 py-1.5 rounded-lg text-lg sm:text-xl font-bold tracking-tight transition-all cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
             currentView === 'chat'
-              ? 'text-neutral-900 dark:text-white bg-neutral-100 dark:bg-[#1a1a20] ring-1 ring-neutral-300 dark:ring-neutral-700 shadow-xs'
-              : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-900'
+              ? 'bg-white text-black dark:bg-white dark:text-black shadow-xs ring-1 ring-neutral-300 dark:ring-neutral-300'
+              : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
           }`}
           title="Abrir IMChat"
         >
@@ -84,7 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={() => onSelectView('developer')}
           className={`px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
             currentView === 'developer'
-              ? 'bg-blue-600 text-white dark:bg-white dark:text-black shadow-xs ring-1 ring-blue-700 dark:ring-neutral-300'
+              ? 'bg-white text-black dark:bg-white dark:text-black shadow-xs ring-1 ring-neutral-300 dark:ring-neutral-300'
               : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
           }`}
           title="Abrir ambiente IMCH AI Developer"
@@ -149,11 +149,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onOpenGithub}
                 className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors whitespace-nowrap cursor-pointer border border-neutral-300 dark:border-neutral-800"
-                title="Sincronização em Tempo Real com GitHub (Willian5720/IMCH-AI)"
+                title="Conectar ao GitHub e Exportar Website"
               >
                 <Github className="w-3.5 h-3.5 text-neutral-800 dark:text-neutral-200" />
                 <span className="inline text-[11px] font-mono">GitHub</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Sincronização em tempo real ativa" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Conexão com GitHub ativa" />
               </button>
             </div>
 

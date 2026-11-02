@@ -6,9 +6,7 @@ import {
   ArrowUp, 
   Copy, 
   Check, 
-  Volume2, 
   Loader2, 
-  Bot, 
   User, 
   Code2, 
   RotateCcw, 
@@ -151,8 +149,6 @@ export const IMCHChatView: React.FC<IMCHChatViewProps> = ({
       setInput(voice.liveTranscript);
     }
   }, [voice.liveTranscript]);
-
-  const speakText = voice.speakText;
 
   // Toggle in-place voice mode with greeting
   const toggleVoiceMode = () => {
@@ -379,10 +375,6 @@ export const IMCHChatView: React.FC<IMCHChatViewProps> = ({
         content: res.reply,
       };
       saveToHistory([...nextMessages, completedMsg]);
-
-      if (voice.isVoiceModeActive) {
-        voice.speakText(res.reply);
-      }
     } catch (err: any) {
       const errorMsg: ChatMessage = {
         id: Math.random().toString(),
@@ -775,14 +767,8 @@ export const IMCHChatView: React.FC<IMCHChatViewProps> = ({
                 {messages.map((m) => (
                   <div
                     key={m.id}
-                    className={`flex gap-3.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {m.role === 'assistant' && (
-                      <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs">
-                        <Bot className="w-3.5 h-3.5" />
-                      </div>
-                    )}
-
                     <div className={`space-y-1.5 max-w-[85%] ${m.role === 'user' ? 'items-end' : ''}`}>
                       {m.attachedFiles && m.attachedFiles.length > 0 && (
                         <div className={`flex flex-wrap gap-1.5 mb-1.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -830,15 +816,6 @@ export const IMCHChatView: React.FC<IMCHChatViewProps> = ({
                               )}
                             </button>
 
-                            <button
-                              onClick={() => speakText(m.content)}
-                              className="flex items-center gap-1 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
-                              title="Ouvir em áudio"
-                            >
-                              <Volume2 className="w-3.5 h-3.5" />
-                              <span>Ouvir</span>
-                            </button>
-
                             {/* Button to open in Developer if prompt can be built */}
                             <button
                               onClick={() => onOpenDeveloperWithPrompt(m.content.slice(0, 300))}
@@ -866,11 +843,8 @@ export const IMCHChatView: React.FC<IMCHChatViewProps> = ({
                 ))}
 
                 {isLoading && (
-                  <div className="flex gap-3 max-w-3xl">
-                    <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs shrink-0 shadow-xs">
-                      <Bot className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="p-3 flex items-center gap-2 text-sm text-neutral-500">
+                  <div className="flex gap-2 max-w-3xl">
+                    <div className="py-2 px-3 flex items-center gap-2 text-sm text-neutral-500">
                       <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                       <span>A processar resposta...</span>
                     </div>

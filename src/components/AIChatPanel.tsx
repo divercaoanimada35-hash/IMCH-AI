@@ -84,8 +84,6 @@ export const AIChatPanel: React.FC<AIChatPanelProps> = ({
     }
   }, [voice.liveTranscript]);
 
-  const speakText = voice.speakText;
-
   const toggleVoiceMode = () => {
     if (voice.isVoiceModeActive) {
       voice.toggleVoiceMode();
@@ -173,7 +171,6 @@ Escreva abaixo o seu prompt e eu analisarei a sua ideia, criarei pasta por pasta
         };
         setMessages((prev) => [...prev, placeholderMsg]);
         await streamTypewriter(assistantMsgId, greetingReply, 15);
-        speakText('Olá! Qual website ou aplicação gostaria de criar hoje?');
         setIsLoading(false);
         return;
       }
@@ -238,7 +235,6 @@ Escreva abaixo o seu prompt e eu analisarei a sua ideia, criarei pasta por pasta
         };
         setMessages((prev) => [...prev, placeholderMsg]);
         await streamTypewriter(assistantMsgId, res.reply, 18);
-        speakText(res.reply);
         return;
       }
 
@@ -338,7 +334,6 @@ Todas as pastas e ficheiros já se encontram no explorador à esquerda e a aplic
 
         // Calm typewriter streaming so the user reads peacefully
         await streamTypewriter(assistantMsgId, fullExplanation, 16);
-        speakText(`Projeto ${res.projectName} criado com sucesso.`);
         return;
       }
 
@@ -367,7 +362,6 @@ Todas as pastas e ficheiros já se encontram no explorador à esquerda e a aplic
       };
       setMessages((prev) => [...prev, placeholderMsg]);
       await streamTypewriter(assistantMsgId, chatRes.reply, 18);
-      speakText(chatRes.reply);
     } catch (error: any) {
       setGeneratingProgress(null);
       const errorMsg: ChatMessage = {

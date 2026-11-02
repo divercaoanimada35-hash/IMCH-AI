@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -19,13 +20,34 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
-const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/llama-3.1-nemotron-70b-instruct';
+export function getOpenRouterApiKey(): string {
+  return (
+    process.env.OPENROUTER_API_KEY ||
+    process.env.OPENROUTER_KEY ||
+    process.env.OPEN_ROUTER_API_KEY ||
+    process.env.VITE_OPENROUTER_API_KEY ||
+    process.env.OPENROUTER_TOKEN ||
+    ''
+  ).trim();
+}
+
+export function getGitHubToken(): string {
+  return (
+    process.env.GITHUB_TOKEN ||
+    process.env.GITHUB_PAT ||
+    process.env.GH_TOKEN ||
+    ''
+  ).trim();
+}
+
+const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openrouter/auto';
 let currentActiveModel = DEFAULT_OPENROUTER_MODEL;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // API: System status
 app.get('/api/status', (req, res) => {
-  const hasOpenRouterKey = Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim().length > 0);
+  const apiKey = getOpenRouterApiKey();
+  const hasOpenRouterKey = Boolean(apiKey && apiKey.length > 0);
   res.json({
     status: 'ok',
     platform: 'IMCH AI Developer',
@@ -38,14 +60,15 @@ app.get('/api/status', (req, res) => {
 
 // API: OpenRouter status probe
 app.get('/api/openrouter/status', (req, res) => {
-  const hasKey = Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim().length > 0);
+  const apiKey = getOpenRouterApiKey();
+  const hasKey = Boolean(apiKey && apiKey.length > 0);
   const targetModel = (req.query.model as string) || currentActiveModel;
   res.json({
     configured: hasKey,
     model: targetModel,
     message: hasKey
-      ? `Chave OPENROUTER_API_KEY configurada no servidor. Modelo ativo: ${targetModel}`
-      : 'Chave OPENROUTER_API_KEY não configurada no servidor.',
+      ? `Chave OPENROUTER_API_KEY configurada nos segredos. Modelo ativo: ${targetModel}`
+      : 'Chave OPENROUTER_API_KEY não configurada nos segredos.',
   });
 });
 
@@ -127,9 +150,186 @@ app.post('/api/github/webhook', async (req, res) => {
   }
 });
 
+// API: Get connected GitHub user info
+app.get('/api/github/user', async (req, res) => {
+  try {
+    const token = (req.query.token as string)?.trim() || getGitHubToken();
+    if (!token) {
+      return res.json({ connected: false, message: 'Nenhum token GitHub configurado.' });
+    }
+
+    const ghRes = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `token ${token}`,
+        'User-Agent': 'IMCH-AI-Developer',
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!ghRes.ok) {
+      const err = await ghRes.json().catch(() => ({}));
+      return res.json({ connected: false, error: err.message || `GitHub HTTP ${ghRes.status}` });
+    }
+
+    const userData = await ghRes.json();
+    return res.json({
+      connected: true,
+      user: {
+        login: userData.login,
+        name: userData.name || userData.login,
+        avatar_url: userData.avatar_url,
+        html_url: userData.html_url,
+        public_repos: userData.public_repos,
+        bio: userData.bio,
+        location: userData.location,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ connected: false, error: err.message });
+  }
+});
+
+// API: Export created site files directly to user's GitHub repository
+app.post('/api/github/export-project', async (req, res) => {
+  try {
+    const { token: userToken, repoName, isPrivate, files, commitMessage, description } = req.body;
+    const token = userToken?.trim() || getGitHubToken();
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Por favor, conecte a sua conta GitHub com um Personal Access Token para exportar.',
+      });
+    }
+
+    if (!repoName || typeof repoName !== 'string') {
+      return res.status(400).json({ success: false, message: 'Nome do repositório é obrigatório.' });
+    }
+
+    const cleanRepoName = repoName.trim().replace(/[^a-zA-Z0-9._-]/g, '-');
+
+    // 1. Get authenticated user
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `token ${token}`,
+        'User-Agent': 'IMCH-AI-Developer',
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!userRes.ok) {
+      return res.status(401).json({ success: false, message: 'Token do GitHub inválido ou expirado.' });
+    }
+
+    const user = await userRes.json();
+    const owner = user.login;
+
+    // 2. Check if repository exists or create it
+    const repoCheckRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepoName}`, {
+      headers: {
+        'Authorization': `token ${token}`,
+        'User-Agent': 'IMCH-AI-Developer',
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (repoCheckRes.status === 404) {
+      // Create repository
+      const createRes = await fetch('https://api.github.com/user/repos', {
+        method: 'POST',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'IMCH-AI-Developer',
+          'Accept': 'application/vnd.github.v3+json',
+        },
+        body: JSON.stringify({
+          name: cleanRepoName,
+          description: description || 'Website criado no IMCH AI Developer',
+          private: Boolean(isPrivate),
+          auto_init: true,
+        }),
+      });
+
+      if (!createRes.ok) {
+        const createErr = await createRes.json().catch(() => ({}));
+        throw new Error(createErr.message || `Erro ao criar repositório no GitHub (${createRes.status})`);
+      }
+      // Brief pause to allow GitHub to initialize default branch
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+
+    // 3. Commit/Push project files to repository
+    const fileEntries = Object.entries(files || {});
+    if (fileEntries.length === 0) {
+      throw new Error('Nenhum ficheiro encontrado no projeto para exportar.');
+    }
+
+    let exportedCount = 0;
+    const finalCommitMsg = commitMessage?.trim() || 'feat: exportar website via IMCH AI Developer';
+
+    for (const [filePath, fileData] of fileEntries) {
+      const cleanPath = filePath.replace(/^\/+/, '');
+      const contentStr = typeof fileData === 'string' ? fileData : (fileData as any)?.content || '';
+      const contentBase64 = Buffer.from(contentStr, 'utf-8').toString('base64');
+
+      // Check if file already exists to get its SHA (required by GitHub API to update files)
+      let fileSha: string | undefined;
+      const getFileRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepoName}/contents/${cleanPath}`, {
+        headers: {
+          'Authorization': `token ${token}`,
+          'User-Agent': 'IMCH-AI-Developer',
+          'Accept': 'application/vnd.github.v3+json',
+        },
+      });
+
+      if (getFileRes.ok) {
+        const existingFileData = await getFileRes.json();
+        fileSha = existingFileData.sha;
+      }
+
+      // Put file content
+      const putRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepoName}/contents/${cleanPath}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'IMCH-AI-Developer',
+          'Accept': 'application/vnd.github.v3+json',
+        },
+        body: JSON.stringify({
+          message: `${finalCommitMsg} (${cleanPath})`,
+          content: contentBase64,
+          sha: fileSha,
+        }),
+      });
+
+      if (!putRes.ok) {
+        const putErr = await putRes.json().catch(() => ({}));
+        console.warn(`[GitHub Export] Falha ao enviar ${cleanPath}:`, putErr.message);
+      } else {
+        exportedCount++;
+      }
+    }
+
+    const repoUrl = `https://github.com/${owner}/${cleanRepoName}`;
+    return res.json({
+      success: true,
+      repoUrl,
+      repoName: cleanRepoName,
+      owner,
+      exportedFilesCount: exportedCount,
+      message: `Website exportado com sucesso para ${repoUrl}! (${exportedCount} ficheiros)`,
+    });
+  } catch (err: any) {
+    console.error('Erro na exportação para o GitHub:', err);
+    return res.status(500).json({ success: false, message: err.message || 'Falha ao exportar projeto para o GitHub.' });
+  }
+});
+
 // API: Detailed key info and available intelligences
 app.get('/api/openrouter/key-info', async (req, res) => {
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  const apiKey = getOpenRouterApiKey();
   if (!apiKey) {
     return res.json({
       configured: false,
@@ -168,11 +368,11 @@ app.get('/api/openrouter/key-info', async (req, res) => {
       },
       availableIntelligences: [
         {
-          id: 'nvidia/llama-3.1-nemotron-70b-instruct',
-          name: 'NVIDIA Nemotron 70B',
-          company: 'NVIDIA',
-          tag: 'Nemotron Conectado • Raciocínio & Código Real',
-          description: 'Modelo topo de gama da NVIDIA para arquitetura de software, geração de código real e raciocínio profundo.',
+          id: 'openrouter/auto',
+          name: 'OpenRouter Auto (Recomendado)',
+          company: 'Multi-Provedor',
+          tag: 'Auto-Roteamento Inteligente • Sempre Operacional',
+          description: 'Roteia dinamicamente para os modelos mais rápidos e disponíveis em tempo real sem erros de indisponibilidade.',
           tested: true,
         },
         {
@@ -251,7 +451,7 @@ app.get('/api/openrouter/key-info', async (req, res) => {
 
 // Helper to handle chat completions via OpenRouter
 async function executeOpenRouterChat(reqBody: any) {
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  const apiKey = getOpenRouterApiKey();
   const { messages, currentFile, currentCode, systemInstruction, mode } = reqBody;
 
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -315,37 +515,53 @@ Responde de forma direta, útil e estruturada. Se te pedirem código, escreve c�
     });
   }
 
-  const targetModel = reqBody.model || currentActiveModel || DEFAULT_OPENROUTER_MODEL;
+  let targetModel = reqBody.model || currentActiveModel || DEFAULT_OPENROUTER_MODEL;
+  if (!targetModel || targetModel.includes('nemotron-70b')) {
+    targetModel = 'openrouter/auto';
+  }
 
   if (!apiKey) {
     const lastUserMsg = safeMessages.filter((m: any) => m.role === 'user').pop()?.content || '';
     return {
-      reply: `Olá! Recebi a tua mensagem: "${lastUserMsg.slice(0, 80)}". Para ativar as respostas completas em tempo real via OpenRouter (${targetModel}), certifica-te de que a chave OPENROUTER_API_KEY está definida nas variáveis de ambiente. Estou pronto para ajudar!`,
+      reply: `Olá! Recebi a tua mensagem: "${lastUserMsg.slice(0, 80)}". Para ativar as respostas completas em tempo real via OpenRouter (${targetModel}), certifica-te de que a chave OPENROUTER_API_KEY está definida nos segredos da aplicação. Estou pronto para ajudar!`,
       model: targetModel,
     };
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  const callOpenRouter = async (modelToUse: string) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    try {
+      const resp = await fetch(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || 'https://imch.pt',
+          'X-Title': 'IMCH AI Developer',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: modelToUse,
+          messages: formattedMessages,
+          temperature: 0.7,
+          max_tokens: 2048,
+        }),
+      });
+      return resp;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
 
-  const openRouterResponse = await fetch(OPENROUTER_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.APP_URL || 'https://imch.pt',
-      'X-Title': 'IMCH AI Developer',
-    },
-    signal: controller.signal,
-    body: JSON.stringify({
-      model: targetModel,
-      messages: formattedMessages,
-      temperature: 0.7,
-      max_tokens: 2048,
-    }),
-  });
+  let openRouterResponse = await callOpenRouter(targetModel);
 
-  clearTimeout(timeoutId);
+  // If first choice model fails (e.g. 404, 429), automatically fallback to openrouter/auto
+  if (!openRouterResponse.ok && targetModel !== 'openrouter/auto') {
+    console.warn(`[OpenRouter] Modelo ${targetModel} retornou ${openRouterResponse.status}. A alternar automaticamente para 'openrouter/auto'...`);
+    targetModel = 'openrouter/auto';
+    openRouterResponse = await callOpenRouter('openrouter/auto');
+  }
 
   if (!openRouterResponse.ok) {
     const errorJson = await openRouterResponse.json().catch(() => ({}));
@@ -998,10 +1214,20 @@ const startServer = async () => {
   // Initialize real-time WebSocket server for collaboration
   collaborationHub.init(server);
 
-  if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+  const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync(path.resolve(__dirname, 'dist', 'index.html'));
+
+  if (isProduction && process.env.NODE_ENV === 'production') {
+    const distPath = path.resolve(__dirname, 'dist');
+    app.use(express.static(distPath, { maxAge: '1h' }));
+
+    // Unmatched API requests should respond with JSON 404, not HTML
+    app.all('/api/*', (req, res) => {
+      res.status(404).json({ error: 'Endpoint API não encontrado.' });
+    });
+
+    // SPA fallback: send index.html for client-side routing
     app.get('*', (req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.resolve(distPath, 'index.html'));
     });
   } else {
     const vite = await createViteServer({

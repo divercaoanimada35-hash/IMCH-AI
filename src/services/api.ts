@@ -314,6 +314,51 @@ class ApiService {
     });
     return await res.json();
   }
+
+  async getGitHubUser(token?: string): Promise<{
+    connected: boolean;
+    user?: {
+      login: string;
+      name: string;
+      avatar_url: string;
+      html_url: string;
+      public_repos: number;
+      bio?: string;
+      location?: string;
+    };
+    error?: string;
+  }> {
+    try {
+      const url = token ? `/api/github/user?token=${encodeURIComponent(token)}` : '/api/github/user';
+      const res = await fetch(url);
+      return await res.json();
+    } catch (e: any) {
+      return { connected: false, error: e.message };
+    }
+  }
+
+  async exportProjectToGitHub(payload: {
+    token?: string;
+    repoName: string;
+    isPrivate?: boolean;
+    files: Record<string, any>;
+    commitMessage?: string;
+    description?: string;
+  }): Promise<{
+    success: boolean;
+    repoUrl?: string;
+    repoName?: string;
+    owner?: string;
+    exportedFilesCount?: number;
+    message: string;
+  }> {
+    const res = await fetch('/api/github/export-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  }
 }
 
 export const apiService = new ApiService();

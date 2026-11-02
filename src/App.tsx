@@ -147,9 +147,13 @@ export default function App() {
     return unsub;
   }, []);
 
-  // OpenRouter Model selection & Modal (default to NVIDIA Nemotron 70B)
+  // OpenRouter Model selection & Modal (default to OpenRouter Auto)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem('imch_selected_model') || 'nvidia/llama-3.1-nemotron-70b-instruct';
+    const saved = localStorage.getItem('imch_selected_model');
+    if (!saved || saved.includes('nemotron-70b')) {
+      return 'openrouter/auto';
+    }
+    return saved;
   });
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
 

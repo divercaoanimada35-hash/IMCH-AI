@@ -184,11 +184,11 @@ export const AIModelModal: React.FC<AIModelModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {(data?.availableIntelligences || [
                 {
-                  id: 'nvidia/llama-3.1-nemotron-70b-instruct',
-                  name: 'NVIDIA Nemotron 70B',
-                  company: 'NVIDIA',
-                  tag: 'Nemotron Conectado • Raciocínio & Código Real',
-                  description: 'Modelo topo de gama da NVIDIA para arquitetura de software, geração de código real e raciocínio profundo.',
+                  id: 'openrouter/auto',
+                  name: 'OpenRouter Auto (Recomendado)',
+                  company: 'Multi-Provedor',
+                  tag: 'Auto-Roteamento Inteligente • Sempre Operacional',
+                  description: 'Roteia dinamicamente para os modelos mais rápidos e disponíveis em tempo real sem erros de indisponibilidade.',
                   tested: true,
                 },
                 {

@@ -124,52 +124,15 @@ export function useVoiceInteraction(options?: UseVoiceInteractionOptions) {
     }
   }, []);
 
-  // Text-to-Speech
-  const speakText = useCallback((text: string, onEnd?: () => void) => {
-    if (!('speechSynthesis' in window)) {
-      onEnd?.();
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    isAiSpeakingRef.current = true;
-
-    // Pause recognition while speaking so AI doesn't listen to itself
-    if (recognitionRef.current && isListeningRef.current) {
+  // Text-to-Speech (disabled to eliminate spoken TTS voice)
+  const speakText = useCallback((_text: string, onEnd?: () => void) => {
+    if ('speechSynthesis' in window) {
       try {
-        recognitionRef.current.abort();
+        window.speechSynthesis.cancel();
       } catch {}
     }
-
-    const cleanText = text
-      .replace(/```[\s\S]*?```/g, 'código omitido da leitura')
-      .replace(/[*#_`]/g, '')
-      .replace(/\(.*?\)/g, '')
-      .slice(0, 500);
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    const navLang = navigator.language || 'pt-PT';
-    utterance.lang = navLang.startsWith('pt') ? navLang : 'pt-PT';
-    utterance.rate = 1.05;
-    utterance.pitch = 1.0;
-
-    const resumeRecognition = () => {
-      isAiSpeakingRef.current = false;
-      onEnd?.();
-
-      if (isVoiceModeRef.current) {
-        setTimeout(() => {
-          if (isVoiceModeRef.current && !isListeningRef.current) {
-            startListeningInternal();
-          }
-        }, 300);
-      }
-    };
-
-    utterance.onend = resumeRecognition;
-    utterance.onerror = resumeRecognition;
-
-    window.speechSynthesis.speak(utterance);
+    isAiSpeakingRef.current = false;
+    onEnd?.();
   }, []);
 
   // Internal start listening logic
